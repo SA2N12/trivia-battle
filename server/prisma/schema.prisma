@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────
+
+enum RoomStatus {
+  WAITING
+  IN_GAME
+  FINISHED
+}
+
+enum GameStatus {
+  STARTING
+  IN_PROGRESS
+  FINISHED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+// ─── Models ─────────────────────────────────────────
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  username    String   @unique
+  password    String
+  isPremium   Boolean  @default(false)
+  totalScore  Int      @default(0)
+  gamesPlayed Int      @default(0)
+  gamesWon    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  hostedRooms   Room[]         @relation("HostedRooms")
+  roomPlayers   RoomPlayer[]
+  playerAnswers PlayerAnswer[]
+  scores        Score[]
+}
+
+model Room {
+  id         String     @id @default(uuid())
+  code       String     @unique
+  hostId     String
+  isPrivate  Boolean    @default(false)
+  isPaid     Boolean    @default(false)
+  maxPlayers Int        @default(10)
+  status     RoomStatus @default(WAITING)
+  category   String?
+  createdAt  DateTime   @default(now())
+
+  host    User         @relation("HostedRooms", fields: [hostId], references: [id])
+  players RoomPlayer[]
+  game    Game?
+}
+
+model RoomPlayer {
+  id       String @id @default(uuid())
+  roomId   String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([roomId, userId])
+}
+
+model Game {
+  id                   String     @id @default(uuid())
+  roomId               String     @unique
+  status               GameStatus @default(STARTING)
+  currentQuestionIndex Int        @default(0)
+  startedAt            DateTime   @default(now())
+  finishedAt           DateTime?
+
+  room          Room           @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  gameQuestions GameQuestion[]
+  playerAnswers PlayerAnswer[]
+  scores        Score[]
+}
+
+model Question {
+  id            String     @id @default(uuid())
+  category      String
+  difficulty    Difficulty @default(MEDIUM)
+  text          String
+  options       Json       // ["Option A", "Option B", "Option C", "Option D"]
+  correctAnswer Int        // index 0-3
+  createdAt     DateTime   @default(now())
+
+  gameQuestions GameQuestion[]
+}
+
+model GameQuestion {
+  id         String @id @default(uuid())
+  gameId     String
+  questionId String
+  order      Int
+
+  game     Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@unique([gameId, order])
+}
+
+model PlayerAnswer {
+  id         String  @id @default(uuid())
+  gameId     String
+  userId     String
+  questionId String
+  answer     Int?    // index chosen, null = timeout
+  isCorrect  Boolean
+  timeMs     Int     // time to answer in ms
+  points     Int     @default(0)
+
+  game     Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([gameId, userId, questionId])
+}
+
+model Score {
+  id             String @id @default(uuid())
+  gameId         String
+  userId         String
+  totalPoints    Int
+  correctAnswers Int
+  rank           Int
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([gameId, userId])
+}
