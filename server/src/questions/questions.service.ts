@@ -1,5 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import * as fs from 'fs';
+import * as path from 'path';
+
+type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+interface SeedQuestion {
+  category: string;
+  difficulty: Difficulty;
+  text: string;
+  options: string[];
+  correctAnswer: number;
+}
 
 @Injectable()
 export class QuestionsService {
@@ -37,14 +49,44 @@ export class QuestionsService {
     }));
   }
 
-  async seedQuestions() {
+  async seedQuestions(reset = false) {
+    if (reset) {
+      await this.prisma.question.deleteMany({});
+    }
+
     const count = await this.prisma.question.count();
     if (count > 0) return { message: `Already ${count} questions in DB` };
 
-    const questions = getSampleQuestions();
+    const questions = loadQuestionsFromFile() ?? getSampleQuestions();
     await this.prisma.question.createMany({ data: questions });
     return { message: `Seeded ${questions.length} questions` };
   }
+}
+
+function loadQuestionsFromFile() {
+  const candidates = [
+    path.join(process.cwd(), 'prisma', 'data', 'questions.json'),
+    path.join(process.cwd(), 'server', 'prisma', 'data', 'questions.json'),
+    path.join(__dirname, '..', '..', 'prisma', 'data', 'questions.json'),
+  ];
+
+  for (const filePath of candidates) {
+    try {
+      if (!fs.existsSync(filePath)) continue;
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      const parsed = JSON.parse(raw) as SeedQuestion[];
+      return parsed.map((q) => ({
+        category: q.category,
+        difficulty: q.difficulty,
+        text: q.text,
+        options: JSON.stringify(q.options),
+        correctAnswer: q.correctAnswer,
+      }));
+    } catch {
+      // try next path
+    }
+  }
+  return null;
 }
 
 function getSampleQuestions() {

@@ -1,4 +1,4 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Controller, Get, Post, Query } from '@nestjs/common';
 import { QuestionsService } from './questions.service';
 
 @Controller('questions')
@@ -11,7 +11,7 @@ export class QuestionsController {
   }
 
   @Post('seed')
-  seed() {
-    return this.questionsService.seedQuestions();
+  seed(@Query('reset') reset?: string) {
+    return this.questionsService.seedQuestions(reset === 'true');
   }
 }
