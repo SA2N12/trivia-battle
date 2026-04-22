@@ -51,6 +51,9 @@ export class QuestionsService {
 
   async seedQuestions(reset = false) {
     if (reset) {
+      // Remove dependent rows first to satisfy foreign keys
+      await this.prisma.playerAnswer.deleteMany({});
+      await this.prisma.gameQuestion.deleteMany({});
       await this.prisma.question.deleteMany({});
     }
 
